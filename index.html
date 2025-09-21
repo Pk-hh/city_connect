@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CityConnect - Real-Time Bus Tracking for Smart Cities</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+
+    <!-- Leaflet JS for Free Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet Rotated Marker Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.min.js"></script>
+
+    <!-- Turf.js for Geo calculations -->
+    <script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+
+    <!-- Markdown-it for rendering Gemini response -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007bff">
+
+
+
+    <style>
+        /* Custom CSS for a cohesive look and feel */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            color: #1e293b; /* Slate-800 */
+        }
+
+        /* Background image for Hero */
+        .hero-bg {
+            background-image: 
+                linear-gradient(rgba(29, 78, 216, 0.8), rgba(29, 78, 216, 0.8)), 
+                url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=1887&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+        
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+        
+        .bus-marker-icon {
+            transition: transform 0.2s ease-out, opacity 0.3s ease-in-out;
+        }
+        
+        .bus-marker-icon:hover {
+             transform: scale(1.2);
+        }
+
+        /* For scroll animations */
+        .animated-section {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+
+        .animated-section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .testimonial-card {
+            background: #fff;
+            border-left: 5px solid #3b82f6;
+        }
+        
+        /* Leaflet Popup Customization */
+        .leaflet-popup-content-wrapper {
+            font-family: 'Inter', sans-serif;
+            padding: 1px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .leaflet-popup-content {
+            margin: 1rem;
+        }
+        .leaflet-popup-close-button {
+            padding: 4px 4px 0 0;
+            font-size: 1.5rem;
+        }
+        #map-container .leaflet-control-attribution {
+            display: none; /* Hiding attribution for cleaner demo look */
+        }
+        
+        /* FAQ Accordion Styles */
+        .faq-question {
+            cursor: pointer;
+        }
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .faq-item.open .faq-answer {
+            max-height: 200px; /* Adjust as needed */
+        }
+        .faq-item.open .faq-arrow {
+            transform: rotate(180deg);
+        }
+        .faq-arrow {
+            transition: transform 0.3s ease;
+        }
+
+        /* Gemini Modal Styles */
+        .gemini-modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .gemini-modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+        .gemini-modal-content ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+        }
+         .gemini-modal-content li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Chatbot Styles */
+        #chat-widget-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        #chat-window {
+            width: 370px;
+            height: 500px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+        }
+        #chat-messages {
+            scroll-behavior: smooth;
+        }
+        .user-message {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .ai-message {
+            background-color: #e5e7eb;
+            color: #1e293b;
+        }
+
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="#" class="flex items-center space-x-2">
+                <svg class="w-8 h-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.125-.504 1.125-1.125V14.25m-17.25 4.5v-1.875a3.375 3.375 0 003.375-3.375h1.5a1.125 1.125 0 011.125 1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375m17.25 4.5v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5c0-.621.504-1.125 1.125-1.125h1.5m-6.75 12V7.5a3.375 3.375 0 00-3.375-3.375H8.625a3.375 3.375 0 00-3.375 3.375v1.5c0 .621.504-1.125 1.125 1.125h1.5a1.125 1.125 0 011.125 1.125v1.5a3.375 3.375 0 003.375 3.375z" />
+                </svg>
+                <span class="text-2xl font-bold text-slate-800">CityConnect</span>
+            </a>
+            <div class="hidden md:flex items-center space-x-6">
+                <a href="#features" class="text-slate-600 hover:text-blue-600 transition duration-300" data-translate-key="navFeatures">Features</a>
+                <a href="#planner" class="text-slate-600 hover:text-blue-600 transition duration-300" data-translate-key="navPlanner">Planner & Safety</a>
+                <a href="#demo" class="text-slate-600 hover:text-blue-600 transition duration-300" data-translate-key="navDemo">Live Demo</a>
+                <a href="#faq" class="text-slate-600 hover:text-blue-600 transition duration-300" data-translate-key="navFAQ">FAQ</a>
+                 <!-- Language Selector -->
+                <div class="relative">
+                    <select id="language-selector" class="bg-slate-100 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 appearance-none">
+                        <option value="en">English</option>
+                        <option value="te">తెలుగు</option>
+                        <option value="hi">हिन्दी</option>
+                    </select>
+                </div>
+                <a href="#cta" class="bg-blue-600 text-white font-semibold py-2 px-5 rounded-lg hover:bg-blue-700 transition duration-300" data-translate-key="navGetStarted">Get Started</a>
+            </div>
+            <button id="mobile-menu-button" class="md:hidden text-slate-700">
+                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+        </nav>
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden px-6 pb-4">
+            <a href="#features" class="block py-2 text-slate-600 hover:text-blue-600" data-translate-key="navFeaturesMobile">Features</a>
+            <a href="#planner" class="block py-2 text-slate-600 hover:text-blue-600" data-translate-key="navPlannerMobile">Planner & Safety</a>
+            <a href="#demo" class="block py-2 text-slate-600 hover:text-blue-600" data-translate-key="navDemoMobile">Live Demo</a>
+            <a href="#faq" class="block py-2 text-slate-600 hover:text-blue-600" data-translate-key="navFAQMobile">FAQ</a>
+            <a href="#cta" class="block py-2 mt-2 bg-blue-600 text-white font-semibold text-center rounded-lg hover:bg-blue-700 transition duration-300" data-translate-key="navGetStartedMobile">Get Started</a>
+             <!-- Language Selector Mobile -->
+             <div class="relative mt-4">
+                <select id="language-selector-mobile" class="w-full bg-slate-100 border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
+                    <option value="en">English</option>
+                    <option value="te">తెలుగు</option>
+                    <option value="hi">हिन्दी</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero-bg text-white overflow-hidden">
+            <div id="particles-js"></div>
+            <div class="container relative mx-auto px-6 py-24 md:py-48 flex items-center justify-center">
+                <!-- Centered Content -->
+                <div class="w-full text-center z-10">
+                    <h1 class="text-4xl md:text-6xl font-extrabold leading-tight mb-4" data-translate-key="heroTitle">End the wait. Your bus is just a tap away.</h1>
+                    <p class="text-lg md:text-xl text-blue-200 mb-8 max-w-3xl mx-auto" data-translate-key="heroSubtitle">Real-time bus tracking, now with AI-powered journey planning and safety features.</p>
+                    <a href="#demo" class="bg-white text-blue-600 font-bold py-3 px-8 rounded-full text-lg hover:bg-blue-100 transition-transform duration-300 transform hover:scale-105 inline-block shadow-lg" data-translate-key="heroCTA">
+                        See It in Action
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trusted By Section -->
+        <section class="py-12 bg-slate-100 animated-section">
+            <div class="container mx-auto px-6 text-center">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6" data-translate-key="trustedByTitle">Trusted by transport authorities</h3>
+                <div class="flex flex-wrap justify-center items-center gap-x-12 gap-y-6">
+                    <p class="text-lg font-semibold text-slate-400">Visakhapatnam RTC</p>
+                    <p class="text-lg font-semibold text-slate-400">Vijayawada City Bus</p>
+                    <p class="text-lg font-semibold text-slate-400">Guntur Municipal Corp</p>
+                    <p class="text-lg font-semibold text-slate-400">Tirupati Smart City</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="py-20 bg-white animated-section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="featuresTitle">A Smarter Way to Travel</h2>
+                    <p class="text-lg text-slate-600 max-w-3xl mx-auto" data-translate-key="featuresSubtitle">CityConnect is packed with features designed for your convenience.</p>
+                </div>
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Feature 1 -->
+                    <div class="text-center p-6 rounded-lg">
+                        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="feature1Title">Real-Time GPS Tracking</h3>
+                        <p class="text-slate-600" data-translate-key="feature1Desc">See the exact location of your bus on a live map.</p>
+                    </div>
+                    <!-- Feature 2 -->
+                    <div class="text-center p-6 rounded-lg">
+                        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="feature2Title">Accurate ETAs</h3>
+                        <p class="text-slate-600" data-translate-key="feature2Desc">Get reliable estimated arrival times for your stop.</p>
+                    </div>
+                    <!-- Feature 3 -->
+                    <div class="text-center p-6 rounded-lg">
+                        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1M14 9h4l3 4v6h-2M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="feature3Title">Detailed Route Info</h3>
+                        <p class="text-slate-600" data-translate-key="feature3Desc">Explore all bus routes and stops in your city.</p>
+                    </div>
+                    <!-- Feature 4 -->
+                    <div class="text-center p-6 rounded-lg">
+                        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="feature4Title">Real-time Alerts</h3>
+                        <p class="text-slate-600" data-translate-key="feature4Desc">Get notifications for delays, route changes, and when your bus is approaching.</p>
+                    </div>
+                    <!-- Feature 5 -->
+                    <div class="text-center p-6 rounded-lg">
+                        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 3h.008v.008H8.25v-.008zm0 3h.008v.008H8.25v-.008zm3-6h.008v.008H11.25v-.008zm0 3h.008v.008H11.25v-.008zm0 3h.008v.008H11.25v-.008zm3-6h.008v.008H14.25v-.008zm0 3h.008v.008H14.25v-.008zm0 3h.008v.008H14.25v-.008zM6 6h12v12H6V6z" />
+                           </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="feature5Title">Fare Calculator</h3>
+                        <p class="text-slate-600" data-translate-key="feature5Desc">Easily calculate your journey's fare before you even start.</p>
+                    </div>
+                    <!-- Feature 6 -->
+                    <div class="text-center p-6 rounded-lg">
+                        <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20.25a8.5 8.5 0 01-5.657-2.343m0 0a8.5 8.5 0 0111.314 0m-11.314 0a8.5 8.5 0 010-11.313A8.5 8.5 0 0112 3.75v16.5z" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="feature6Title">Low-Bandwidth Mode</h3>
+                        <p class="text-slate-600" data-translate-key="feature6Desc">Optimized for slow connections to ensure accessibility for all.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Journey Planner & Safety Section -->
+        <section id="planner" class="py-20 bg-slate-100 animated-section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="plannerTitle">Search, Plan & Stay Safe</h2>
+                    <p class="text-lg text-slate-600 max-w-3xl mx-auto" data-translate-key="plannerSubtitle">Use our AI-powered tools to plan your trip or find help in an emergency.</p>
+                </div>
+                <div class="grid lg:grid-cols-2 gap-8 items-start">
+                    <!-- Journey Planner -->
+                    <div class="bg-white p-8 rounded-2xl shadow-lg">
+                         <h3 class="text-2xl font-bold text-slate-800 mb-1 flex items-center" data-translate-key="plannerCardTitle">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                             AI Journey Planner
+                         </h3>
+                         <p class="text-slate-500 mb-6" data-translate-key="plannerCardSubtitle">Find the best bus route for your trip.</p>
+                        <div class="grid sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="start-location" class="block text-sm font-medium text-slate-700 mb-1" data-translate-key="plannerFrom">From</label>
+                                <input type="text" id="start-location" class="w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., RK Beach" data-translate-key="plannerFromPlaceholder">
+                            </div>
+                            <div>
+                                <label for="end-location" class="block text-sm font-medium text-slate-700 mb-1" data-translate-key="plannerTo">To</label>
+                                <input type="text" id="end-location" class="w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., Gajuwaka" data-translate-key="plannerToPlaceholder">
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button id="plan-journey-btn" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-blue-700 w-full transition-transform duration-300 transform hover:scale-105" data-translate-key="plannerButton">
+                                Plan My Trip
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Emergency Services -->
+                    <div class="bg-white p-8 rounded-2xl shadow-lg">
+                        <h3 class="text-2xl font-bold text-slate-800 mb-1 flex items-center" data-translate-key="emergencyCardTitle">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            Emergency Services
+                        </h3>
+                        <p class="text-slate-500 mb-6" data-translate-key="emergencyCardSubtitle">Find the nearest help, fast.</p>
+                        <div class="mt-6">
+                             <button id="emergency-btn" class="bg-red-600 text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-red-700 w-full transition-transform duration-300 transform hover:scale-105" data-translate-key="emergencyButton">
+                                Find Help Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Demo Section -->
+        <section id="demo" class="py-20 bg-white animated-section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="demoTitle">Live Bus Demo</h2>
+                    <p class="text-lg text-slate-600 max-w-3xl mx-auto" data-translate-key="demoSubtitle">This is a live simulation. Click a bus for details or filter routes below.</p>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-2xl p-4 md:p-8">
+                     <!-- Live Info Header -->
+                    <div class="flex flex-wrap justify-between items-center mb-4 px-2 gap-y-4">
+                        <div class="flex items-center space-x-3">
+                            <span class="relative flex h-3 w-3">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                            </span>
+                            <span class="font-semibold text-red-600" data-translate-key="demoLive">LIVE</span>
+                            <span class="text-slate-500 font-medium hidden sm:inline">| Visakhapatnam, AP</span>
+                        </div>
+                        <div id="live-conditions" class="flex items-center space-x-4 text-sm text-slate-600 font-medium">
+                             <!-- Live conditions will be inserted here -->
+                        </div>
+                        <div id="live-clock" class="font-mono text-slate-600 font-semibold text-lg">
+                            02:45:00 PM
+                        </div>
+                    </div>
+                    
+                    <!-- Route Filters -->
+                    <div id="route-filters" class="flex flex-wrap justify-center gap-3 mb-4">
+                        <button data-route="A" class="route-filter-btn bg-blue-500 text-white py-2 px-4 rounded-full text-sm font-semibold transition-all duration-300">Route A</button>
+                        <button data-route="B" class="route-filter-btn bg-blue-500 text-white py-2 px-4 rounded-full text-sm font-semibold transition-all duration-300">Route B</button>
+                        <button data-route="C" class="route-filter-btn bg-blue-500 text-white py-2 px-4 rounded-full text-sm font-semibold transition-all duration-300">Route C</button>
+                        <button data-route="D" class="route-filter-btn bg-blue-500 text-white py-2 px-4 rounded-full text-sm font-semibold transition-all duration-300">Route D (99K)</button>
+                        <button data-route="E" class="route-filter-btn bg-blue-500 text-white py-2 px-4 rounded-full text-sm font-semibold transition-all duration-300">Route E (38)</button>
+                    </div>
+
+                    <!-- Map Container -->
+                    <div id="map-container" class="relative w-full h-[60vh] max-h-[600px] bg-slate-200 rounded-lg overflow-hidden">
+                         <div id="map-loader" class="absolute inset-0 bg-slate-200/80 backdrop-blur-sm flex items-center justify-center z-20">
+                            <div class="text-center">
+                                <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                <p class="mt-2 text-slate-600 font-semibold" data-translate-key="mapLoader">Connecting to Live Feed...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 text-center mt-2" data-translate-key="mapDisclaimer">
+                        *Live simulation using pre-defined routes. A public APSRTC API is not currently available.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Key Destinations Section -->
+        <section class="py-20 bg-white animated-section">
+            <div class="container mx-auto px-6 text-center">
+                 <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="destinationsTitle">Explore Key Destinations</h2>
+                 <p class="text-lg text-slate-600 max-w-3xl mx-auto mb-8" data-translate-key="destinationsSubtitle">Jump to popular locations in Visakhapatnam on the live map.</p>
+                 <div class="flex flex-wrap justify-center gap-4">
+                    <button onclick="panToLocation('rtcComplex')" class="bg-white text-blue-600 font-semibold py-2 px-5 rounded-full shadow-md hover:bg-blue-100 transition duration-300 border border-slate-200 hover:scale-105">RTC Complex</button>
+                    <button onclick="panToLocation('rkBeach')" class="bg-white text-blue-600 font-semibold py-2 px-5 rounded-full shadow-md hover:bg-blue-100 transition duration-300 border border-slate-200 hover:scale-105">RK Beach</button>
+                    <button onclick="panToLocation('rushikonda')" class="bg-white text-blue-600 font-semibold py-2 px-5 rounded-full shadow-md hover:bg-blue-100 transition duration-300 border border-slate-200 hover:scale-105">Rushikonda IT Park</button>
+                    <button onclick="panToLocation('jagadamba')" class="bg-white text-blue-600 font-semibold py-2 px-5 rounded-full shadow-md hover:bg-blue-100 transition duration-300 border border-slate-200 hover:scale-105">Jagadamba Centre</button>
+                 </div>
+            </div>
+        </section>
+
+        <!-- How it Works Section -->
+        <section id="how-it-works" class="py-20 animated-section bg-slate-50">
+             <div class="container mx-auto px-6 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="howItWorksTitle">Simple, Seamless, Smart.</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto mb-16" data-translate-key="howItWorksSubtitle">Bringing real-time data from the bus to your phone in three easy steps.</p>
+                <div class="relative grid md:grid-cols-3 gap-8 md:gap-16">
+                    <!-- Connecting lines -->
+                    <div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 -mt-16">
+                        <svg width="100%" height="100%" viewBox="0 0 100 1" preserveAspectRatio="none" class="absolute">
+                            <path d="M 0,0.5 L 100,0.5" stroke-dasharray="5, 5" stroke="#cbd5e1" stroke-width="2"/>
+                        </svg>
+                    </div>
+                     <!-- Step 1 -->
+                    <div class="relative z-10 text-center">
+                        <div class="w-24 h-24 mx-auto mb-4 flex items-center justify-center rounded-full bg-white shadow-lg text-blue-600 border-4 border-slate-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="step1Title">1. Install GPS</h3>
+                        <p class="text-slate-600" data-translate-key="step1Desc">Lightweight GPS devices are installed in each bus, constantly transmitting location data.</p>
+                    </div>
+                     <!-- Step 2 -->
+                    <div class="relative z-10 text-center">
+                        <div class="w-24 h-24 mx-auto mb-4 flex items-center justify-center rounded-full bg-white shadow-lg text-blue-600 border-4 border-slate-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                               <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9V3m0 18a9 9 0 009-9m-9 9a9 9 0 00-9-9" />
+                            </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="step2Title">2. Process Data</h3>
+                        <p class="text-slate-600" data-translate-key="step2Desc">Our cloud servers receive the data, calculating ETAs and bus positions in real-time.</p>
+                    </div>
+                    <!-- Step 3 -->
+                    <div class="relative z-10 text-center">
+                        <div class="w-24 h-24 mx-auto mb-4 flex items-center justify-center rounded-full bg-white shadow-lg text-blue-600 border-4 border-slate-200">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                           </svg>
+                        </div>
+                        <h3 class="font-bold text-xl mb-2" data-translate-key="step3Title">3. View on App</h3>
+                        <p class="text-slate-600" data-translate-key="step3Desc">Commuters open the CityConnect app to see live bus locations and accurate arrival times.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials Section -->
+        <section id="testimonials" class="py-20 bg-white animated-section">
+            <div class="container mx-auto px-6">
+                 <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="testimonialsTitle">Loved by Commuters</h2>
+                    <p class="text-lg text-slate-600 max-w-3xl mx-auto" data-translate-key="testimonialsSubtitle">Don't just take our word for it. Here's what people in your city are saying.</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="testimonial-card p-8 rounded-lg shadow-md">
+                        <p class="text-slate-700 text-lg mb-4" data-translate-key="testimonial1Text">"CityConnect has been a game-changer for my daily commute. I save at least 20 minutes every day because I know exactly when to leave for the bus stop. No more guessing!"</p>
+                        <div class="flex items-center">
+                            <img src="https://placehold.co/48x48/e0e7ff/374151?text=RK" class="w-12 h-12 rounded-full mr-4" alt="Ravi Kumar">
+                            <div>
+                                <p class="font-bold text-slate-800">Ravi Kumar</p>
+                                <p class="text-sm text-slate-500" data-translate-key="testimonial1Author">Daily Commuter, Visakhapatnam</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="testimonial-card p-8 rounded-lg shadow-md">
+                        <p class="text-slate-700 text-lg mb-4" data-translate-key="testimonial2Text">"As a student, I rely on public transport. This app is fantastic! It's simple, accurate, and works even with my slow data connection. Highly recommended."</p>
+                        <div class="flex items-center">
+                            <img src="https://placehold.co/48x48/e0e7ff/374151?text=PL" class="w-12 h-12 rounded-full mr-4" alt="Priya Lakshmi">
+                            <div>
+                                <p class="font-bold text-slate-800">Priya Lakshmi</p>
+                                <p class="text-sm text-slate-500" data-translate-key="testimonial2Author">University Student, Vijayawada</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq" class="py-20 bg-slate-50 animated-section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4" data-translate-key="faqTitle">Frequently Asked Questions</h2>
+                    <p class="text-lg text-slate-600 max-w-3xl mx-auto" data-translate-key="faqSubtitle">Have questions? We've got answers.</p>
+                </div>
+                <div class="max-w-3xl mx-auto space-y-4">
+                    <!-- FAQ Item 1 -->
+                    <div class="faq-item bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <div class="faq-question flex justify-between items-center">
+                            <h3 class="font-semibold text-lg" data-translate-key="faq1Question">How accurate is the real-time tracking?</h3>
+                            <svg class="w-6 h-6 text-slate-500 faq-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                        <div class="faq-answer pt-4 text-slate-600" data-translate-key="faq1Answer">
+                            Our system uses high-quality GPS devices that update every few seconds, providing accuracy within 5-10 meters. This ensures the bus's location on the map is extremely close to its actual position.
+                        </div>
+                    </div>
+                    <!-- FAQ Item 2 -->
+                    <div class="faq-item bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <div class="faq-question flex justify-between items-center">
+                            <h3 class="font-semibold text-lg" data-translate-key="faq2Question">Will this app use a lot of my mobile data?</h3>
+                            <svg class="w-6 h-6 text-slate-500 faq-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                        <div class="faq-answer pt-4 text-slate-600" data-translate-key="faq2Answer">
+                            No. We've designed CityConnect to be highly data-efficient. The app only downloads essential location updates, and the "Low-Bandwidth Mode" further reduces data consumption, making it ideal for all types of data plans.
+                        </div>
+                    </div>
+                    <!-- FAQ Item 3 -->
+                    <div class="faq-item bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <div class="faq-question flex justify-between items-center">
+                            <h3 class="font-semibold text-lg" data-translate-key="faq3Question">Is CityConnect available in my town?</h3>
+                            <svg class="w-6 h-6 text-slate-500 faq-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </div>
+                        <div class="faq-answer pt-4 text-slate-600" data-translate-key="faq3Answer">
+                            We are rapidly expanding! Currently, we are live in Visakhapatnam, Vijayawada, and Guntur. We are actively working with municipal corporations to bring CityConnect to more tier-2 towns soon.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- CTA Section -->
+        <section id="cta" class="gradient-bg py-20 animated-section">
+            <div class="container mx-auto px-6 text-center text-white">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4" data-translate-key="ctaTitle">Ready to Revolutionize Your Commute?</h2>
+                <p class="text-lg text-blue-200 max-w-2xl mx-auto mb-8" data-translate-key="ctaSubtitle">Download the CityConnect app today and experience the future of public transport. Available on Android and iOS.</p>
+                <div class="flex justify-center items-center space-x-4">
+                    <a href="#" class="bg-white text-blue-600 font-semibold py-3 px-6 rounded-lg flex items-center space-x-2 hover:bg-blue-100 transition duration-300">
+                        <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.25 5.25v13.5l-10.5-6.75 10.5-6.75z"/></svg>
+                        <span data-translate-key="ctaGooglePlay">Google Play</span>
+                    </a>
+                    <a href="#" class="bg-white text-blue-600 font-semibold py-3 px-6 rounded-lg flex items-center space-x-2 hover:bg-blue-100 transition duration-300">
+                        <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M15.99 4.907c-1.123.003-1.826.545-2.923.545-1.037 0-1.808-.524-2.926-.524-1.68 0-2.937 1.182-3.618 2.82C3.21 11.25 4.8 15.36 6.32 17.51c.76.953 1.623 2.05 2.825 2.02 1.15-.028 1.48-1.5 2.836-1.5.99 0 1.693 1.5 2.815 1.5 1.226.03 1.956-1.065 2.696-2.015.93-1.18 1.405-2.312 1.442-2.375a.17.17 0 00-.14-.23c-.006 0-.012 0-.018.002-.3.06-.99.3-1.92.3-1.196 0-2.07-.803-2.926-.803-.812 0-1.58.78-2.58.78-.962 0-1.72-.75-2.56-.75-.828 0-1.4.52-1.94.52-.39 0-.75-.16-1.04-.46-.06-.06-.1-.13-.13-.21-.02-.07-.03-.13-.03-.2 0-.17.07-.34.21-.47.24-.22.68-.5 1.17-.5.67 0 1.25.64 2.1.64.9 0 1.64-.81 2.5-.81.88 0 1.58.78 2.58.78.96 0 1.73-.78 2.58-.78.9 0 1.55.51 2.04.51.52 0 1.19-.34 1.52-.45a.173.173 0 00.12-.22c-.06-.23-2.07-6.25-2.07-6.25-1.03-1.78-2.73-2.61-4.22-2.61zM14.99 2.1c.62-.06 1.24.18 1.68.6.36.33.56.8.56 1.28 0 .09-.01.19-.03.28-.52 1.62-1.88 2.8-3.41 2.8-1.47 0-2.63-1.02-3.32-2.45-.1-.2-.14-.4-.14-.6C10.33 2.95 11.4 2 12.5 2c.67 0 1.24.33 1.77.33.45 0 .82-.23.99-.36.19-.14.24-.3.23-.47z"/></svg>
+                        <span data-translate-key="ctaAppStore">App Store</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-300 py-16">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <h4 class="text-white font-bold mb-4">CityConnect</h4>
+                    <p class="text-sm text-slate-400" data-translate-key="footerTagline">Making public transport reliable for everyone.</p>
+                </div>
+                <div>
+                    <h4 class="text-white font-semibold mb-4" data-translate-key="footerQuickLinks">Quick Links</h4>
+                    <ul>
+                        <li class="mb-2"><a href="#features" class="hover:text-white transition" data-translate-key="footerFeatures">Features</a></li>
+                        <li class="mb-2"><a href="#planner" class="hover:text-white transition" data-translate-key="footerPlanner">Planner</a></li>
+                        <li class="mb-2"><a href="#demo" class="hover:text-white transition" data-translate-key="footerDemo">Live Demo</a></li>
+                        <li class="mb-2"><a href="#faq" class="hover:text-white transition" data-translate-key="footerFAQ">FAQ</a></li>
+                    </ul>
+                </div>
+                <div>
+                     <h4 class="text-white font-semibold mb-4" data-translate-key="footerLegal">Legal</h4>
+                    <ul>
+                        <li class="mb-2"><a href="#" class="hover:text-white transition" data-translate-key="footerPrivacy">Privacy Policy</a></li>
+                        <li class="mb-2"><a href="#" class="hover:text-white transition" data-translate-key="footerTerms">Terms of Service</a></li>
+                    </ul>
+                </div>
+                 <div>
+                     <h4 class="text-white font-semibold mb-4" data-translate-key="footerFollow">Follow Us</h4>
+                     <div class="flex space-x-4">
+                        <a href="#" class="text-slate-400 hover:text-white transition"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M22.46,6C21.69,6.35 20.86,6.58 20,6.69C20.88,6.16 21.56,5.32 21.88,4.31C21.05,4.81 20.13,5.16 19.16,5.36C18.37,4.5 17.26,4 16,4C13.65,4 11.73,5.92 11.73,8.29C11.73,8.63 11.77,8.96 11.84,9.28C8.28,9.09 5.11,7.38 3,4.79C2.63,5.42 2.42,6.16 2.42,6.94C2.42,8.43 3.17,9.75 4.33,10.5C3.62,10.5 2.96,10.3 2.38,10C2.38,10 2.38,10 2.38,10.03C2.38,12.21 3.86,13.85 5.82,14.24C5.46,14.34 5.08,14.39 4.69,14.39C4.42,14.39 4.15,14.36 3.89,14.31C4.43,16 6,17.26 7.89,17.29C6.43,18.45 4.58,19.13 2.56,19.13C2.22,19.13 1.88,19.11 1.54,19.07C3.44,20.29 5.7,21 8.12,21C16,21 20.33,14.46 20.33,8.79C20.33,8.6 20.33,8.42 20.32,8.23C21.16,7.63 21.88,6.87 22.46,6Z" /></svg></a>
+                        <a href="#" class="text-slate-400 hover:text-white transition"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19,4H14.82C14.4,2.84 13.3,2 12,2C10.7,2 9.6,2.84 9.18,4H5A2,2 0 0,0 3,6V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V6A2,2 0 0,0 19,4M12,4C12.55,4 13,4.45 13,5C13,5.55 12.55,6 12,6C11.45,6 11,5.55 11,5C11,4.45 11.45,4 12,4M7,8H17V11H15V9H9V11H7V8M10,12H14V14H10V12M7,15H17V18H7V15Z" /></svg></a>
+                     </div>
+                </div>
+            </div>
+            <div class="mt-12 pt-8 border-t border-slate-700 text-center text-sm text-slate-400">
+                 <p>&copy; 2025 CityConnect. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Gemini API Modal -->
+    <div id="gemini-modal" class="gemini-modal fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 hidden opacity-0" onclick="closeGeminiModal()">
+        <div class="gemini-modal-content bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-8 transform scale-95" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="gemini-modal-title" class="text-2xl font-bold text-slate-800">AI Assistant</h3>
+                <button onclick="closeGeminiModal()" class="text-slate-500 hover:text-slate-800">&times;</button>
+            </div>
+            <div id="gemini-modal-body" class="prose max-w-none text-slate-700">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot Widget -->
+    <div id="chat-widget-container">
+        <!-- Chat Window -->
+        <div id="chat-window" class="hidden absolute bottom-20 right-0 bg-white rounded-2xl w-full max-w-sm flex flex-col transform translate-y-4 opacity-0">
+            <!-- Header -->
+            <div class="p-4 border-b bg-blue-600 text-white rounded-t-2xl flex justify-between items-center">
+                <h3 class="font-bold text-lg" data-translate-key="chatbotHeader">AI Assistant</h3>
+                <button id="close-chat-btn" class="text-white">&times;</button>
+            </div>
+            <!-- Messages -->
+            <div id="chat-messages" class="flex-1 p-4 space-y-4 overflow-y-auto">
+                <div class="ai-message p-3 rounded-lg max-w-xs">
+                    <p data-translate-key="chatbotGreeting">Hello! How can I help you plan your journey in Visakhapatnam today?</p>
+                </div>
+            </div>
+            <!-- Input -->
+            <div class="p-4 border-t">
+                <form id="chat-form" class="flex space-x-2">
+                    <input type="text" id="chat-input" placeholder="Ask about routes..." class="w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" data-translate-key="chatbotPlaceholder">
+                    <button type="submit" class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+        <!-- Chat Button -->
+        <button id="chat-open-btn" class="bg-blue-600 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-transform transform hover:scale-110">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+        </button>
+    </div>
+
+
+    <script>
+        // --- Multi-Language Support ---
+        let currentLanguage = 'en';
+        const translations = {
+            en: {
+                navFeatures: "Features",
+                navPlanner: "Planner & Safety",
+                navDemo: "Live Demo",
+                navFAQ: "FAQ",
+                navGetStarted: "Get Started",
+                navFeaturesMobile: "Features",
+                navPlannerMobile: "Planner & Safety",
+                navDemoMobile: "Live Demo",
+                navFAQMobile: "FAQ",
+                navGetStartedMobile: "Get Started",
+                heroTitle: "End the wait. Your bus is just a tap away.",
+                heroSubtitle: "Real-time bus tracking, now with AI-powered journey planning and safety features.",
+                heroCTA: "See It in Action",
+                trustedByTitle: "Trusted by transport authorities",
+                featuresTitle: "A Smarter Way to Travel",
+                featuresSubtitle: "CityConnect is packed with features designed for your convenience.",
+                feature1Title: "Real-Time GPS Tracking",
+                feature1Desc: "See the exact location of your bus on a live map.",
+                feature2Title: "Accurate ETAs",
+                feature2Desc: "Get reliable estimated arrival times for your stop.",
+                feature3Title: "Detailed Route Info",
+                feature3Desc: "Explore all bus routes and stops in your city.",
+                feature4Title: "Real-time Alerts",
+                feature4Desc: "Get notifications for delays, route changes, and when your bus is approaching.",
+                feature5Title: "Fare Calculator",
+                feature5Desc: "Easily calculate your journey's fare before you even start.",
+                feature6Title: "Low-Bandwidth Mode",
+                feature6Desc: "Optimized for slow connections to ensure accessibility for all.",
+                plannerTitle: "Search, Plan & Stay Safe",
+                plannerSubtitle: "Use our AI-powered tools to plan your trip or find help in an emergency.",
+                plannerCardTitle: "AI Journey Planner",
+                plannerCardSubtitle: "Find the best bus route for your trip.",
+                plannerFrom: "From",
+                plannerTo: "To",
+                plannerFromPlaceholder: "e.g., RK Beach",
+                plannerToPlaceholder: "e.g., Gajuwaka",
+                plannerButton: "Plan My Trip",
+                emergencyCardTitle: "Emergency Services",
+                emergencyCardSubtitle: "Find the nearest help, fast.",
+                emergencyButton: "Find Help Now",
+                demoTitle: "Live Bus Demo",
+                demoSubtitle: "This is a live simulation. Click a bus for details or filter routes below.",
+                demoLive: "LIVE",
+                mapLoader: "Connecting to Live Feed...",
+                mapDisclaimer: "*Live simulation using pre-defined routes. A public APSRTC API is not currently available.",
+                destinationsTitle: "Explore Key Destinations",
+                destinationsSubtitle: "Jump to popular locations in Visakhapatnam on the live map.",
+                howItWorksTitle: "Simple, Seamless, Smart.",
+                howItWorksSubtitle: "Bringing real-time data from the bus to your phone in three easy steps.",
+                step1Title: "1. Install GPS",
+                step1Desc: "Lightweight GPS devices are installed in each bus, constantly transmitting location data.",
+                step2Title: "2. Process Data",
+                step2Desc: "Our cloud servers receive the data, calculating ETAs and bus positions in real-time.",
+                step3Title: "3. View on App",
+                step3Desc: "Commuters open the CityConnect app to see live bus locations and accurate arrival times.",
+                testimonialsTitle: "Loved by Commuters",
+                testimonialsSubtitle: "Don't just take our word for it. Here's what people in your city are saying.",
+                testimonial1Text: '"CityConnect has been a game-changer for my daily commute. I save at least 20 minutes every day because I know exactly when to leave for the bus stop. No more guessing!"',
+                testimonial1Author: "Daily Commuter, Visakhapatnam",
+                testimonial2Text: '"As a student, I rely on public transport. This app is fantastic! It\'s simple, accurate, and works even with my slow data connection. Highly recommended."',
+                testimonial2Author: "University Student, Vijayawada",
+                faqTitle: "Frequently Asked Questions",
+                faqSubtitle: "Have questions? We've got answers.",
+                faq1Question: "How accurate is the real-time tracking?",
+                faq1Answer: "Our system uses high-quality GPS devices that update every few seconds, providing accuracy within 5-10 meters. This ensures the bus's location on the map is extremely close to its actual position.",
+                faq2Question: "Will this app use a lot of my mobile data?",
+                faq2Answer: "No. We've designed CityConnect to be highly data-efficient. The app only downloads essential location updates, and the 'Low-Bandwidth Mode' further reduces data consumption, making it ideal for all types of data plans.",
+                faq3Question: "Is CityConnect available in my town?",
+                faq3Answer: "We are rapidly expanding! Currently, we are live in Visakhapatnam, Vijayawada, and Guntur. We are actively working with municipal corporations to bring CityConnect to more tier-2 towns soon.",
+                ctaTitle: "Ready to Revolutionize Your Commute?",
+                ctaSubtitle: "Download the CityConnect app today and experience the future of public transport. Available on Android and iOS.",
+                ctaGooglePlay: "Google Play",
+                ctaAppStore: "App Store",
+                footerTagline: "Making public transport reliable for everyone.",
+                footerQuickLinks: "Quick Links",
+                footerFeatures: "Features",
+                footerPlanner: "Planner",
+                footerDemo: "Live Demo",
+                footerFAQ: "FAQ",
+                footerLegal: "Legal",
+                footerPrivacy: "Privacy Policy",
+                footerTerms: "Terms of Service",
+                footerFollow: "Follow Us",
+                chatbotHeader: "AI Assistant",
+                chatbotGreeting: "Hello! How can I help you plan your journey in Visakhapatnam today?",
+                chatbotPlaceholder: "Ask about routes...",
+            },
+            te: {
+                navFeatures: "ఫీచర్లు",
+                navPlanner: "ప్లానర్ & భద్రత",
+                navDemo: "లైవ్ డెమో",
+                navFAQ: "FAQ",
+                navGetStarted: "ప్రారంభించండి",
+                navFeaturesMobile: "ఫీచర్లు",
+                navPlannerMobile: "ప్లానర్ & భద్రత",
+                navDemoMobile: "లైవ్ డెమో",
+                navFAQMobile: "FAQ",
+                navGetStartedMobile: "ప్రారంభించండి",
+                heroTitle: "వేచి ఉండకండి. మీ బస్సు కేవలం ఒక ట్యాప్ దూరంలో ఉంది.",
+                heroSubtitle: "నిజ-సమయ బస్ ట్రాకింగ్, ఇప్పుడు AI-పవర్డ్ ప్రయాణ ప్రణాళిక మరియు భద్రతా ఫీచర్లతో.",
+                heroCTA: "చర్యలో చూడండి",
+                trustedByTitle: "రవాణా అధికారులచే విశ్వసించబడింది",
+                featuresTitle: "ప్రయాణించడానికి ఒక తెలివైన మార్గం",
+                featuresSubtitle: "సిటీకనెక్ట్ మీ సౌలభ్యం కోసం రూపొందించిన ఫీచర్లతో నిండి ఉంది.",
+                feature1Title: "నిజ-సమయ GPS ట్రాకింగ్",
+                feature1Desc: "లైవ్ మ్యాప్‌లో మీ బస్సు యొక్క ఖచ్చితమైన స్థానాన్ని చూడండి.",
+                feature2Title: "ఖచ్చితమైన ETAలు",
+                feature2Desc: "మీ స్టాప్ కోసం విశ్వసనీయమైన అంచనా రాక సమయాలను పొందండి.",
+                feature3Title: "వివరణాత్మక రూట్ సమాచారం",
+                feature3Desc: "మీ నగరంలోని అన్ని బస్సు మార్గాలు మరియు స్టాప్‌లను అన్వేషించండి.",
+                feature4Title: "నిజ-సమయ హెచ్చరికలు",
+                feature4Desc: "ఆలస్యం, మార్పులు మరియు మీ బస్సు సమీపిస్తున్నప్పుడు నోటిఫికేషన్‌లను పొందండి.",
+                feature5Title: "ఛార్జీల కాలిక్యులేటర్",
+                feature5Desc: "మీరు ప్రారంభించడానికి ముందే మీ ప్రయాణ ఛార్జీని సులభంగా లెక్కించండి.",
+                feature6Title: "తక్కువ-బ్యాండ్‌విడ్త్ మోడ్",
+                feature6Desc: "అందరికీ అందుబాటులో ఉండేలా నెమ్మదిగా కనెక్షన్‌ల కోసం ఆప్టిమైజ్ చేయబడింది.",
+                plannerTitle: "శోధించండి, ప్లాన్ చేయండి & సురక్షితంగా ఉండండి",
+                plannerSubtitle: "మీ ట్రిప్‌ను ప్లాన్ చేయడానికి లేదా అత్యవసర పరిస్థితుల్లో సహాయం కనుగొనడానికి మా AI-పవర్డ్ సాధనాలను ఉపయోగించండి.",
+                plannerCardTitle: "AI ప్రయాణ ప్లానర్",
+                plannerCardSubtitle: "మీ ట్రిప్ కోసం ఉత్తమ బస్సు మార్గాన్ని కనుగొనండి.",
+                plannerFrom: "నుండి",
+                plannerTo: "వరకు",
+                plannerFromPlaceholder: "ఉదా., ఆర్కే బీచ్",
+                plannerToPlaceholder: "ఉదా., గాజువాక",
+                plannerButton: "నా ట్రిప్ ప్లాన్ చేయండి",
+                emergencyCardTitle: "అత్యవసర సేవలు",
+                emergencyCardSubtitle: "సమీప సహాయాన్ని వేగంగా కనుగొనండి.",
+                emergencyButton: "ఇప్పుడు సహాయం కనుగొనండి",
+                demoTitle: "లైవ్ బస్ డెమో",
+                demoSubtitle: "ఇది ఒక లైవ్ సిమ్యులేషన్. వివరాల కోసం బస్సుపై క్లిక్ చేయండి లేదా క్రింద మార్గాలను ఫిల్టర్ చేయండి.",
+                demoLive: "లైవ్",
+                mapLoader: "లైవ్ ఫీడ్‌కు కనెక్ట్ అవుతోంది...",
+                mapDisclaimer: "*ముందే నిర్వచించిన మార్గాలను ఉపయోగించి లైవ్ సిమ్యులేషన్. పబ్లిక్ APSRTC API ప్రస్తుతం అందుబాటులో లేదు.",
+                destinationsTitle: "ముఖ్య గమ్యస్థానాలను అన్వేషించండి",
+                destinationsSubtitle: "లైవ్ మ్యాప్‌లో విశాఖపట్నంలోని ప్రముఖ ప్రదేశాలకు వెళ్ళండి.",
+                howItWorksTitle: "సరళమైనది, సులభమైనది, స్మార్ట్.",
+                howItWorksSubtitle: "మూడు సులభమైన దశల్లో బస్సు నుండి మీ ఫోన్‌కు నిజ-సమయ డేటాను తీసుకురావడం.",
+                step1Title: "1. GPS ఇన్‌స్టాల్ చేయండి",
+                step1Desc: "ప్రతి బస్సులో తేలికపాటి GPS పరికరాలు ఇన్‌స్టాల్ చేయబడతాయి, నిరంతరం స్థాన డేటాను ప్రసారం చేస్తాయి.",
+                step2Title: "2. డేటాను ప్రాసెస్ చేయండి",
+                step2Desc: "మా క్లౌడ్ సర్వర్‌లు డేటాను స్వీకరించి, నిజ-సమయంలో ETAలు మరియు బస్సు స్థానాలను లెక్కిస్తాయి.",
+                step3Title: "3. యాప్‌లో చూడండి",
+                step3Desc: "ప్రయాణికులు లైవ్ బస్సు స్థానాలు మరియు ఖచ్చితమైన రాక సమయాలను చూడటానికి సిటీకనెక్ట్ యాప్‌ను తెరుస్తారు.",
+                testimonialsTitle: "ప్రయాణికులచే ప్రేమించబడింది",
+                testimonialsSubtitle: "కేవలం మా మాట మీద ఆధారపడవద్దు. మీ నగరంలోని ప్రజలు ఏమి చెబుతున్నారో ఇక్కడ ఉంది.",
+                testimonial1Text: '"నా రోజువారీ ప్రయాణానికి సిటీకనెక్ట్ ఒక గేమ్-ఛేంజర్. నేను ప్రతిరోజూ కనీసం 20 నిమిషాలు ఆదా చేస్తాను ఎందుకంటే బస్ స్టాప్‌కు ఎప్పుడు వెళ్ళాలో నాకు ఖచ్చితంగా తెలుసు. ఇకపై ఊహించాల్సిన అవసరం లేదు!"',
+                testimonial1Author: "రోజువారీ ప్రయాణికుడు, విశాఖపట్నం",
+                testimonial2Text: '"ఒక విద్యార్థిగా, నేను ప్రజా రవాణాపై ఆధారపడతాను. ఈ యాప్ అద్భుతంగా ఉంది! ఇది సరళమైనది, ఖచ్చితమైనది మరియు నా నెమ్మది డేటా కనెక్షన్‌తో కూడా పనిచేస్తుంది. చాలా సిఫార్సు చేయబడింది."',
+                testimonial2Author: "విశ్వవిద్యాలయ విద్యార్థి, విజయవాడ",
+                faqTitle: "తరచుగా అడిగే ప్రశ్నలు",
+                faqSubtitle: "ప్రశ్నలు ఉన్నాయా? మా వద్ద సమాధానాలు ఉన్నాయి.",
+                faq1Question: "నిజ-సమయ ట్రాకింగ్ ఎంత ఖచ్చితమైనది?",
+                faq1Answer: "మా సిస్టమ్ అధిక-నాణ్యత గల GPS పరికరాలను ఉపయోగిస్తుంది, ఇవి ప్రతి కొన్ని సెకన్లకు అప్‌డేట్ అవుతాయి, 5-10 మీటర్ల లోపల ఖచ్చితత్వాన్ని అందిస్తాయి. ఇది మ్యాప్‌లో బస్సు స్థానం దాని వాస్తవ స్థానానికి చాలా దగ్గరగా ఉండేలా చేస్తుంది.",
+                faq2Question: "ఈ యాప్ నా మొబైల్ డేటాను చాలా ఉపయోగిస్తుందా?",
+                faq2Answer: "లేదు. మేము సిటీకనెక్ట్‌ను అధిక డేటా-సామర్థ్యం గలదిగా రూపొందించాము. యాప్ కేవలం అవసరమైన స్థాన అప్‌డేట్‌లను మాత్రమే డౌన్‌లోడ్ చేస్తుంది మరియు 'తక్కువ-బ్యాండ్‌విడ్త్ మోడ్' డేటా వినియోగాన్ని మరింత తగ్గిస్తుంది, ఇది అన్ని రకాల డేటా ప్లాన్‌లకు అనువైనదిగా చేస్తుంది.",
+                faq3Question: "సిటీకనెక్ట్ నా పట్టణంలో అందుబాటులో ఉందా?",
+                faq3Answer: "మేము వేగంగా విస్తరిస్తున్నాము! ప్రస్తుతం, మేము విశాఖపట్నం, విజయవాడ మరియు గుంటూరులో ప్రత్యక్షంగా ఉన్నాము. త్వరలో మరిన్ని టైర్-2 పట్టణాలకు సిటీకనెక్ట్‌ను తీసుకురావడానికి మేము పురపాలక కార్పొరేషన్‌లతో చురుకుగా పనిచేస్తున్నాము.",
+                ctaTitle: "మీ ప్రయాణాన్ని విప్లవాత్మకంగా మార్చడానికి సిద్ధంగా ఉన్నారా?",
+                ctaSubtitle: "ఈరోజే సిటీకనెక్ట్ యాప్‌ను డౌన్‌లోడ్ చేసుకోండి మరియు ప్రజా రవాణా భవిష్యత్తును అనుభవించండి. ఆండ్రాయిడ్ మరియు iOSలో అందుబాటులో ఉంది.",
+                ctaGooglePlay: "గూగుల్ ప్లే",
+                ctaAppStore: "యాప్ స్టోర్",
+                footerTagline: "ప్రతిఒక్కరికీ ప్రజా రవాణాను విశ్వసనీయంగా చేయడం.",
+                footerQuickLinks: "త్వరిత లింకులు",
+                footerFeatures: "ఫీచర్లు",
+                footerPlanner: "ప్లానర్",
+                footerDemo: "లైవ్ డెమో",
+                footerFAQ: "FAQ",
+                footerLegal: "చట్టపరమైన",
+                footerPrivacy: "గోప్యతా విధానం",
+                footerTerms: "సేవా నిబంధనలు",
+                footerFollow: "మమ్మల్ని అనుసరించండి",
+                chatbotHeader: "AI అసిస్టెంట్",
+                chatbotGreeting: "నమస్కారం! ఈరోజు విశాఖపట్నంలో మీ ప్రయాణాన్ని ప్లాన్ చేయడంలో నేను మీకు ఎలా సహాయపడగలను?",
+                chatbotPlaceholder: "మార్గాల గురించి అడగండి...",
+            },
+            hi: {
+                navFeatures: "विशेषताएँ",
+                navPlanner: "योजनाकार और सुरक्षा",
+                navDemo: "लाइव डेमो",
+                navFAQ: "FAQ",
+                navGetStarted: "शुरू हो जाओ",
+                navFeaturesMobile: "विशेषताएँ",
+                navPlannerMobile: "योजनाकार और सुरक्षा",
+                navDemoMobile: "लाइव डेमो",
+                navFAQMobile: "FAQ",
+                navGetStartedMobile: "शुरू हो जाओ",
+                heroTitle: "इंतजार खत्म। आपकी बस बस एक टैप दूर है।",
+                heroSubtitle: "वास्तविक समय बस ट्रैकिंग, अब AI-संचालित यात्रा योजना और सुरक्षा सुविधाओं के साथ।",
+                heroCTA: "इसे क्रिया में देखें",
+                trustedByTitle: "परिवहन अधिकारियों द्वारा विश्वसनीय",
+                featuresTitle: "यात्रा करने का एक बेहतर तरीका",
+                featuresSubtitle: "सिटीकनेक्ट आपकी सुविधा के लिए डिज़ाइन की गई सुविधाओं से भरपूर है।",
+                feature1Title: "वास्तविक समय जीपीएस ट्रैकिंग",
+                feature1Desc: "लाइव मानचित्र पर अपनी बस का सटीक स्थान देखें।",
+                feature2Title: "सटीक ईटीए",
+                feature2Desc: "अपने स्टॉप के लिए विश्वसनीय अनुमानित आगमन समय प्राप्त करें।",
+                feature3Title: "विस्तृत मार्ग जानकारी",
+                feature3Desc: "अपने शहर में सभी बस मार्गों और स्टॉप का अन्वेषण करें।",
+                feature4Title: "वास्तविक समय अलर्ट",
+                feature4Desc: "देरी, मार्ग परिवर्तन और जब आपकी बस आ रही हो तो सूचनाएं प्राप्त करें।",
+                feature5Title: "किराया कैलकुलेटर",
+                feature5Desc: "शुरू करने से पहले ही अपनी यात्रा के किराए की आसानी से गणना करें।",
+                feature6Title: "कम-बैंडविड्थ मोड",
+                feature6Desc: "सभी के लिए पहुंच सुनिश्चित करने के लिए धीमे कनेक्शन के लिए अनुकूलित।",
+                plannerTitle: "खोजें, योजना बनाएं और सुरक्षित रहें",
+                plannerSubtitle: "अपनी यात्रा की योजना बनाने या आपात स्थिति में मदद पाने के लिए हमारे AI-संचालित टूल का उपयोग करें।",
+                plannerCardTitle: "AI यात्रा योजनाकार",
+                plannerCardSubtitle: "अपनी यात्रा के लिए सबसे अच्छा बस मार्ग खोजें।",
+                plannerFrom: "से",
+                plannerTo: "तक",
+                plannerFromPlaceholder: "जैसे, आरके बीच",
+                plannerToPlaceholder: "जैसे, गाजुवाका",
+                plannerButton: "मेरी यात्रा की योजना बनाएं",
+                emergencyCardTitle: "आपातकालीन सेवाएं",
+                emergencyCardSubtitle: "निकटतम मदद तेजी से पाएं।",
+                emergencyButton: "अभी मदद पाएं",
+                demoTitle: "लाइव बस डेमो",
+                demoSubtitle: "यह एक लाइव सिमुलेशन है। विवरण के लिए बस पर क्लिक करें या नीचे मार्गों को फ़िल्टर करें।",
+                demoLive: "लाइव",
+                mapLoader: "लाइव फ़ीड से कनेक्ट हो रहा है...",
+                mapDisclaimer: "*पूर्वनिर्धारित मार्गों का उपयोग करके लाइव सिमुलेशन। एक सार्वजनिक APSRTC API वर्तमान में उपलब्ध नहीं है।",
+                destinationsTitle: "प्रमुख स्थलों का अन्वेषण करें",
+                destinationsSubtitle: "लाइव मानचित्र पर विशाखापत्तनम में लोकप्रिय स्थानों पर जाएं।",
+                howItWorksTitle: "सरल, सहज, स्मार्ट।",
+                howItWorksSubtitle: "तीन आसान चरणों में बस से आपके फोन तक वास्तविक समय का डेटा लाना।",
+                step1Title: "1. जीपीएस स्थापित करें",
+                step1Desc: "प्रत्येक बस में हल्के जीपीएस उपकरण स्थापित किए जाते हैं, जो लगातार स्थान डेटा प्रसारित करते हैं।",
+                step2Title: "2. डेटा संसाधित करें",
+                step2Desc: "हमारे क्लाउड सर्वर डेटा प्राप्त करते हैं, वास्तविक समय में ईटीए और बस की स्थिति की गणना करते हैं।",
+                step3Title: "3. ऐप पर देखें",
+                step3Desc: "यात्री लाइव बस स्थानों और सटीक आगमन समय देखने के लिए सिटीकनेक्ट ऐप खोलते हैं।",
+                testimonialsTitle: "यात्रियों द्वारा पसंद किया गया",
+                testimonialsSubtitle: "सिर्फ हमारी बात न मानें। यहां बताया गया है कि आपके शहर के लोग क्या कह रहे हैं।",
+                testimonial1Text: '"सिटीकनेक्ट मेरे दैनिक आवागमन के लिए एक गेम-चेंजर रहा है। मैं हर दिन कम से कम 20 मिनट बचाता हूं क्योंकि मुझे ठीक-ठीक पता है कि बस स्टॉप के लिए कब निकलना है। अब कोई अनुमान नहीं!"',
+                testimonial1Author: "दैनिक यात्री, विशाखापत्तनम",
+                testimonial2Text: '"एक छात्र के रूप में, मैं सार्वजनिक परिवहन पर निर्भर हूं। यह ऐप शानदार है! यह सरल, सटीक है, और मेरे धीमे डेटा कनेक्शन के साथ भी काम करता है। अत्यधिक अनुशंसित।"',
+                testimonial2Author: "विश्वविद्यालय का छात्र, विजयवाड़ा",
+                faqTitle: "अक्सर पूछे जाने वाले प्रश्न",
+                faqSubtitle: "प्रश्न हैं? हमारे पास उत्तर हैं।",
+                faq1Question: "वास्तविक समय की ट्रैकिंग कितनी सटीक है?",
+                faq1Answer: "हमारी प्रणाली उच्च-गुणवत्ता वाले जीपीएस उपकरणों का उपयोग करती है जो हर कुछ सेकंड में अपडेट होते हैं, जो 5-10 मीटर के भीतर सटीकता प्रदान करते हैं। यह सुनिश्चित करता है कि मानचित्र पर बस का स्थान उसकी वास्तविक स्थिति के बहुत करीब है।",
+                faq2Question: "क्या यह ऐप मेरे बहुत सारे मोबाइल डेटा का उपयोग करेगा?",
+                faq2Answer: "नहीं। हमने सिटीकनेक्ट को अत्यधिक डेटा-कुशल होने के लिए डिज़ाइन किया है। ऐप केवल आवश्यक स्थान अपडेट डाउनलोड करता है, और 'कम-बैंडविड्थ मोड' डेटा की खपत को और कम करता है, जिससे यह सभी प्रकार के डेटा प्लान के लिए आदर्श बन जाता है।",
+                faq3Question: "क्या सिटीकनेक्ट मेरे शहर में उपलब्ध है?",
+                faq3Answer: "हम तेजी से विस्तार कर रहे हैं! वर्तमान में, हम विशाखापत्तनम, विजयवाड़ा और गुंटूर में लाइव हैं। हम जल्द ही और अधिक टियर -2 शहरों में सिटीकनेक्ट लाने के लिए नगर निगमों के साथ सक्रिय रूप से काम कर रहे हैं।",
+                ctaTitle: "अपने आवागमन में क्रांति लाने के लिए तैयार हैं?",
+                ctaSubtitle: "आज ही सिटीकनेक्ट ऐप डाउनलोड करें और सार्वजनिक परिवहन के भविष्य का अनुभव करें। एंड्रॉइड और आईओएस पर उपलब्ध है।",
+                ctaGooglePlay: "गूगल प्ले",
+                ctaAppStore: "ऐप स्टोर",
+                footerTagline: "सार्वजनिक परिवहन को सभी के लिए विश्वसनीय बनाना।",
+                footerQuickLinks: "त्वरित सम्पक",
+                footerFeatures: "विशेषताएँ",
+                footerPlanner: "योजनाकार",
+                footerDemo: "लाइव डेमो",
+                footerFAQ: "FAQ",
+                footerLegal: "कानूनी",
+                footerPrivacy: "गोपनीयता नीति",
+                footerTerms: "सेवा की शर्तें",
+                footerFollow: "हमारा अनुसरण करें",
+                chatbotHeader: "AI सहायक",
+                chatbotGreeting: "नमस्ते! मैं आज विशाखापत्तनम में आपकी यात्रा की योजना बनाने में आपकी कैसे मदद कर सकता हूँ?",
+                chatbotPlaceholder: "मार्गों के बारे में पूछें...",
+            }
+        };
+
+        function changeLanguage(lang) {
+            if (!translations[lang]) return;
+            currentLanguage = lang;
+            localStorage.setItem('preferredLanguage', lang);
+
+            document.querySelectorAll('[data-translate-key]').forEach(el => {
+                const key = el.dataset.translateKey;
+                if (translations[lang][key]) {
+                     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = translations[lang][key];
+                    } else {
+                        el.innerHTML = translations[lang][key];
+                    }
+                }
+            });
+             // Sync both language selectors
+            document.getElementById('language-selector').value = lang;
+            document.getElementById('language-selector-mobile').value = lang;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLang = localStorage.getItem('preferredLanguage') || 'en';
+            changeLanguage(savedLang);
+        });
+        
+        document.getElementById('language-selector').addEventListener('change', (e) => changeLanguage(e.target.value));
+        document.getElementById('language-selector-mobile').addEventListener('change', (e) => changeLanguage(e.target.value));
+
+        // --- Mobile Menu Toggle ---
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // --- Scroll Animations ---
+        const animatedSections = document.querySelectorAll('.animated-section');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+        animatedSections.forEach(section => {
+            observer.observe(section);
+        });
+        
+        // --- Particles.js ---
+        particlesJS('particles-js', {
+          "particles": { "number": { "value": 60, "density": { "enable": true, "value_area": 800 } }, "color": { "value": "#ffffff" }, "shape": { "type": "circle", "stroke": { "width": 0, "color": "#000000" }, "polygon": { "nb_sides": 5 }, "image": { "src": "img/github.svg", "width": 100, "height": 100 } }, "opacity": { "value": 0.5, "random": false, "anim": { "enable": false, "speed": 1, "opacity_min": 0.1, "sync": false } }, "size": { "value": 3, "random": true, "anim": { "enable": false, "speed": 40, "size_min": 0.1, "sync": false } }, "line_linked": { "enable": true, "distance": 150, "color": "#ffffff", "opacity": 0.4, "width": 1 }, "move": { "enable": true, "speed": 2, "direction": "none", "random": false, "straight": false, "out_mode": "out", "bounce": false, "attract": { "enable": false, "rotateX": 600, "rotateY": 1200 } } }, "interactivity": { "detect_on": "canvas", "events": { "onhover": { "enable": true, "mode": "repulse" }, "onclick": { "enable": true, "mode": "push" }, "resize": true }, "modes": { "grab": { "distance": 400, "line_linked": { "opacity": 1 } }, "bubble": { "distance": 400, "size": 40, "duration": 2, "opacity": 8, "speed": 3 }, "repulse": { "distance": 200, "duration": 0.4 }, "push": { "particles_nb": 4 }, "remove": { "particles_nb": 2 } } }, "retina_detect": true
+        });
+
+        // --- Gemini API Integration & Chatbot ---
+        const md = window.markdownit();
+        const geminiModal = document.getElementById('gemini-modal');
+        const geminiModalTitle = document.getElementById('gemini-modal-title');
+        const geminiModalBody = document.getElementById('gemini-modal-body');
+        
+        const API_KEY = "AIzaSyCVlZ9p_XcbKRW8JmBaBv5n4jJdB6VQrWU"; 
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+        let emergencyMarkers = [];
+
+        async function callGemini(prompt, isChat = false, chatHistory = []) {
+            if (!API_KEY) {
+                const message = "API key is missing. Please add your Gemini API key to the script.";
+                console.error(message);
+                return message;
+            }
+
+            let payload;
+            const languageMap = { en: 'English', te: 'Telugu', hi: 'Hindi' };
+            const targetLanguage = languageMap[currentLanguage] || 'English';
+
+            if (isChat) {
+                 payload = {
+                    contents: [...chatHistory, { role: "user", parts: [{ text: prompt }] }],
+                    systemInstruction: {
+                        parts: [{ text: `You are a helpful and friendly local transport assistant for Visakhapatnam, India named CityConnect AI. Provide concise, helpful answers based on the user's questions about bus routes, locations, and general city information. Use the provided route information when necessary. Be friendly and conversational. IMPORTANT: Your entire response must be in ${targetLanguage}.` }]
+                    }
+                };
+            } else {
+                 payload = {
+                    contents: [{ parts: [{ text: prompt }] }]
+                };
+            }
+
+             try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    console.error("API Error Response:", errorBody);
+                    throw new Error(`API call failed with status: ${response.status}. ${errorBody.error?.message || ''}`);
+                }
+                const result = await response.json();
+                return result.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't get a response. Please try again.";
+            } catch (error) {
+                console.error("Gemini API call error:", error);
+                return `An error occurred: ${error.message}. Please check the console for details.`;
+            }
+        }
+
+        function showGeminiModal(title, content) {
+            geminiModalTitle.textContent = title;
+            geminiModalBody.innerHTML = md.render(content);
+            geminiModal.classList.remove('hidden');
+            setTimeout(() => {
+                geminiModal.classList.remove('opacity-0');
+                geminiModal.querySelector('.gemini-modal-content').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeGeminiModal() {
+            geminiModal.classList.add('opacity-0');
+            geminiModal.querySelector('.gemini-modal-content').classList.add('scale-95');
+            setTimeout(() => geminiModal.classList.add('hidden'), 300);
+        }
+
+        document.getElementById('plan-journey-btn').addEventListener('click', async () => {
+            const start = document.getElementById('start-location').value;
+            const end = document.getElementById('end-location').value;
+            if (!start || !end) {
+                showGeminiModal('Journey Planner', 'Please enter both a starting and ending location.');
+                return;
+            }
+            
+            showGeminiModal('✨ Planning Your Journey...', '<div class="flex justify-center items-center p-8"><svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>');
+
+            const languageMap = { en: 'English', te: 'Telugu', hi: 'Hindi' };
+            const targetLanguage = languageMap[currentLanguage] || 'English';
+
+            const prompt = `
+                You are a helpful local transport assistant for Visakhapatnam, India.
+                A user wants to travel from "${start}" to "${end}".
+                The current time is approximately 2:45 PM on a Sunday.
+                Based on the following available bus routes, provide a simple, step-by-step travel plan.
+                If a direct route is not available, suggest a route with one transfer.
+                Keep the instructions clear and concise.
+
+                Available Routes:
+                - Route A: Connects RTC Complex, Siripuram, Jagadamba Centre, and the Old Town area.
+                - Route B: Travels between RK Beach, MVP Colony, and Isukathota.
+                - Route C: Services the IT corridor from Rushikonda IT Park to Bheemili Beach.
+                - Route D (99K): A long route connecting the industrial area (Kurmannapalem, Gajuwaka) to the city center (NAD, RTC Complex, RK Beach).
+                - Route E (38): Connects the Railway Station to key junctions like Jagadamba Centre and Siripuram.
+
+                Provide the best travel plan.
+                IMPORTANT: Your entire response must be in ${targetLanguage}.
+            `;
+            const result = await callGemini(prompt);
+            showGeminiModal('✨ Your AI-Powered Journey Plan', result);
+        });
+        
+        document.getElementById('emergency-btn').addEventListener('click', async () => {
+            showGeminiModal('🚨 Finding Help...', '<div class="flex justify-center items-center p-8"><svg class="animate-spin h-8 w-8 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>');
+
+            const currentCenter = map.getCenter();
+            const prompt = `
+                List the names and approximate coordinates for 3 hospitals and 3 police stations near the location ${currentCenter.lat}, ${currentCenter.lng} in Visakhapatnam, India.
+                Return the result ONLY as a valid JSON object.
+                The JSON object should have two keys: "hospitals" and "police_stations".
+                Each key should have an array of objects, where each object has "name" (string) and "coords" (an array of two numbers, [latitude, longitude]).
+                Do not include any other text or explanation outside of the JSON object.
+
+                Example format:
+                {
+                  "hospitals": [
+                    { "name": "Example Hospital", "coords": [17.72, 83.31] }
+                  ],
+                  "police_stations": [
+                    { "name": "Example Police Station", "coords": [17.73, 83.32] }
+                  ]
+                }
+            `;
+            
+            const result = await callGemini(prompt);
+            try {
+                // Clean the response to ensure it's valid JSON
+                const jsonString = result.replace(/```json/g, '').replace(/```/g, '').trim();
+                const services = JSON.parse(jsonString);
+                displayEmergencyServices(services);
+                closeGeminiModal();
+            } catch (error) {
+                 console.error("Failed to parse emergency services JSON:", error, "Raw response:", result);
+                 showGeminiModal('🚨 Error', 'Could not retrieve emergency service locations. The AI response was not in the correct format.');
+            }
+        });
+
+        async function getNearbyInfo(stopName) {
+            showGeminiModal(`✨ Exploring near ${stopName}...`, '<div class="flex justify-center items-center p-8"><svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>');
+            
+            const languageMap = { en: 'English', te: 'Telugu', hi: 'Hindi' };
+            const targetLanguage = languageMap[currentLanguage] || 'English';
+            
+            const prompt = `List 3-4 interesting or useful points of interest (like restaurants, shops, parks, or landmarks) near the "${stopName}" bus stop in Visakhapatnam, India. Provide a very brief, one-line description for each. IMPORTANT: Your entire response must be in ${targetLanguage}.`;
+            const result = await callGemini(prompt);
+            showGeminiModal(`✨ What's Near ${stopName}?`, result);
+        }
+
+        // --- Chatbot UI Logic ---
+        const chatOpenBtn = document.getElementById('chat-open-btn');
+        const closeChatBtn = document.getElementById('close-chat-btn');
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+        let chatHistory = [];
+
+        function toggleChatWindow() {
+            const isHidden = chatWindow.classList.contains('hidden');
+            if (isHidden) {
+                chatWindow.classList.remove('hidden');
+                setTimeout(() => {
+                    chatWindow.classList.remove('opacity-0', 'translate-y-4');
+                }, 10);
+            } else {
+                chatWindow.classList.add('opacity-0', 'translate-y-4');
+                 setTimeout(() => {
+                    chatWindow.classList.add('hidden');
+                }, 300);
+            }
+        }
+        chatOpenBtn.addEventListener('click', toggleChatWindow);
+        closeChatBtn.addEventListener('click', toggleChatWindow);
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userInput = chatInput.value.trim();
+            if (!userInput) return;
+
+            // Add user message to UI
+            addChatMessage(userInput, 'user');
+            chatHistory.push({ role: "user", parts: [{ text: userInput }] });
+            chatInput.value = '';
+
+            // Add typing indicator
+            const typingIndicator = addChatMessage('...', 'ai', true);
+
+            // Call Gemini API
+            const aiResponse = await callGemini(userInput, true, chatHistory);
+            
+            // Remove typing indicator and add AI response
+            typingIndicator.remove();
+            addChatMessage(aiResponse, 'ai');
+            chatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+        });
+
+        function addChatMessage(message, sender, isTyping = false) {
+            const messageDiv = document.createElement('div');
+            const messageContent = document.createElement('div');
+            messageContent.className = `${sender === 'user' ? 'user-message' : 'ai-message'} p-3 rounded-lg max-w-xs`;
+            
+            if (isTyping) {
+                 messageContent.innerHTML = '<div class="flex items-center space-x-1"><div class="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-pulse delay-150"></div><div class="w-2 h-2 bg-slate-400 rounded-full animate-pulse delay-300"></div></div>';
+            } else {
+                 messageContent.innerHTML = md.render(message);
+            }
+
+            messageDiv.appendChild(messageContent);
+            messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return messageDiv;
+        }
+
+
+        // --- Leaflet.js & Simulated API Integration ---
+        const busMarkers = [];
+        const routeLayers = {};
+        let map;
+        const processedRoutes = {};
+        let lastTime = 0;
+        let tempMarker = null;
+
+        const keyDestinations = {
+            rtcComplex: [17.720, 83.296],
+            rkBeach: [17.710, 83.320],
+            rushikonda: [17.783, 83.344],
+            jagadamba: [17.705, 83.310],
+        };
+        
+        function fetchSimulatedBusData() {
+            console.log("Fetching live data from simulated API...");
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const mockApiResponse = {
+                        vehicles: [
+                            { id: 101, route: 'A', status: 'On Time', currentStop: 'Old Town', nextStop: 'RTC Complex', eta: 12 },
+                            { id: 102, route: 'A', status: 'On Time', currentStop: 'Siripuram', nextStop: 'Jagadamba Centre', eta: 7 },
+                            { id: 204, route: 'B', status: 'Slight Delay', currentStop: 'RK Beach', nextStop: 'MVP Colony', eta: 8 },
+                            { id: 205, route: 'B', status: 'On Time', currentStop: 'Sivaji Park', nextStop: 'Isukathota', eta: 11 },
+                            { id: 302, route: 'C', status: 'On Time', currentStop: 'Gitame University', nextStop: 'Timmapuram', eta: 15 },
+                            { id: 303, route: 'C', status: 'Heavy Traffic', currentStop: 'Rushikonda IT Park', nextStop: 'Gitame University', eta: 22 },
+                            { id: 401, route: 'D', status: 'On Time', currentStop: 'Kurmannapalem', nextStop: 'Gajuwaka', eta: 9 },
+                            { id: 402, route: 'D', status: 'On Time', currentStop: 'NAD Kotha Rd', nextStop: 'RTC Complex', eta: 14 },
+                            { id: 501, route: 'E', status: 'Slight Delay', currentStop: 'Railway Station', nextStop: 'Jagadamba Centre', eta: 6 },
+                            { id: 502, route: 'E', status: 'On Time', currentStop: 'Siripuram', nextStop: 'Pedda Waltair', eta: 10 },
+                        ],
+                        routeGeometries: {
+                            A: [[83.2960, 17.7200], [83.3035, 17.7175], [83.3080, 17.7140], [83.3100, 17.7050], [83.3005, 17.6980], [83.2910, 17.6965], [83.2800, 17.6990], [83.2840, 17.7060], [83.2880, 17.7120], [83.2960, 17.7200]],
+                            B: [[83.3200, 17.7100], [83.3250, 17.7180], [83.3300, 17.7250], [83.3385, 17.7300], [83.3420, 17.7350], [83.3360, 17.7400], [83.3300, 17.7380], [83.3250, 17.7350], [83.3200, 17.7280], [83.3150, 17.7200], [83.3160, 17.7150], [83.3200, 17.7100]],
+                            C: [[83.3440, 17.7830], [83.3590, 17.7920], [83.3680, 17.7990], [83.3750, 17.8050], [83.3830, 17.8120], [83.3900, 17.8180], [83.4010, 17.8240], [83.4100, 17.8300], [83.4200, 17.8400], [83.4280, 17.8480], [83.4350, 17.8550], [83.4420, 17.8630], [83.4500, 17.8750], [83.4450, 17.8700], [83.4350, 17.8550], [83.4250, 17.8440], [83.4150, 17.8350], [83.4050, 17.8280], [83.3950, 17.8220], [83.3850, 17.8150], [83.3750, 17.8050], [83.3650, 17.7980], [83.3550, 17.7900], [83.3440, 17.7830]],
+                            D: [[83.1890, 17.6580], [83.1960, 17.6630], [83.2050, 17.6700], [83.2120, 17.6820], [83.2180, 17.6890], [83.2250, 17.7000], [83.2300, 17.7050], [83.2380, 17.7180], [83.2450, 17.7250], [83.2500, 17.7330], [83.2550, 17.7390], [83.2650, 17.7360], [83.2750, 17.7300], [83.2850, 17.7250], [83.2960, 17.7200], [83.3050, 17.7150], [83.3100, 17.7130], [83.3180, 17.7110], [83.3200, 17.7100], [83.3150, 17.7000], [83.3080, 17.6950], [83.2980, 17.6900], [83.2850, 17.6920], [83.2700, 17.6950], [83.2500, 17.6880], [83.2400, 17.6800], [83.2250, 17.6720], [83.2100, 17.6650], [83.1990, 17.6600], [83.1890, 17.6580]],
+                            E: [[83.2870, 17.7190], [83.2950, 17.7100], [83.3050, 17.7070], [83.3100, 17.7050], [83.3140, 17.7150], [83.3180, 17.7280], [83.3250, 17.7310], [83.3350, 17.7350], [83.3300, 17.7400], [83.3250, 17.7420], [83.3180, 17.7380], [83.3100, 17.7350], [83.3000, 17.7250], [83.2930, 17.7220], [83.2870, 17.7190]]
+                        },
+                        stopNames: {
+                            A: ['RTC Complex', 'Siripuram', 'Jagadamba Centre', 'Old Town'],
+                            B: ['RK Beach', 'MVP Colony', 'Sivaji Park', 'Isukathota'],
+                            C: ['Rushikonda IT Park', 'Gitame University', 'Timmapuram', 'Bheemili Beach'],
+                            D: ['Kurmannapalem', 'Gajuwaka', 'NAD Kotha Rd', 'RTC Complex', 'RK Beach', 'Kancharapalem'],
+                            E: ['Railway Station', 'Jagadamba Centre', 'Siripuram', 'Pedda Waltair', 'Asilmetta'],
+                        }
+                    };
+                    resolve(mockApiResponse);
+                }, 1500);
+            });
+        }
+        
+        function panToLocation(locationKey) {
+            if (!map || !keyDestinations[locationKey]) return;
+            const coords = keyDestinations[locationKey];
+            map.flyTo(coords, 15, { animate: true, duration: 1.5 });
+            if (tempMarker) map.removeLayer(tempMarker);
+            tempMarker = L.circleMarker(coords, { color: '#ef4444', fillColor: '#f87171', fillOpacity: 0.5, radius: 20 }).addTo(map);
+            setTimeout(() => { if (tempMarker) map.removeLayer(tempMarker); tempMarker = null; }, 3000);
+        }
+        
+        async function initializeMap() {
+            try {
+                map = L.map('map-container').setView([17.725, 83.3185], 12);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+                
+                const liveData = await fetchSimulatedBusData();
+                document.getElementById('map-loader').style.display = 'none';
+
+                loadMapData(liveData);
+                startBusUpdates(liveData.stopNames);
+                requestAnimationFrame(animateBuses);
+
+            } catch (error) {
+                console.error("Failed to initialize Leaflet map:", error);
+                const mapContainer = document.getElementById('map-container');
+                if (mapContainer) mapContainer.innerHTML = '<p class="text-center text-slate-500 p-8">Could not load live bus data.</p>';
+            }
+        }
+        
+        function displayEmergencyServices({hospitals, police_stations}) {
+            // Clear previous emergency markers
+            emergencyMarkers.forEach(m => map.removeLayer(m));
+            emergencyMarkers = [];
+
+            const hospitalIcon = L.icon({
+                iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23dc2626"><path d="M18 16h-4v-4h-4v4H6v-4H2v8h20v-8h-4v4zm-2-9.46V2h-4v4.54a4 4 0 0 0 4 0z" /></svg>',
+                iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32]
+            });
+
+            const policeIcon = L.icon({
+                iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231d4ed8"><path d="M12 2L1 9l4 1.5V15H3v4h18v-4h-2v-4.5L23 9l-3-2.67V3h-2v2.33L12 2zm0 2.44L18.39 9H5.61L12 4.44z" /></svg>',
+                iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32]
+            });
+            
+            hospitals.forEach(h => {
+                const marker = L.marker(h.coords, {icon: hospitalIcon}).addTo(map)
+                    .bindPopup(`<b>${h.name}</b><br/>Hospital`);
+                emergencyMarkers.push(marker);
+            });
+
+            police_stations.forEach(p => {
+                 const marker = L.marker(p.coords, {icon: policeIcon}).addTo(map)
+                    .bindPopup(`<b>${p.name}</b><br/>Police Station`);
+                emergencyMarkers.push(marker);
+            });
+        }
+
+        function loadMapData({ vehicles, routeGeometries }) {
+            for (const routeName in routeGeometries) {
+                const coords = routeGeometries[routeName];
+                processedRoutes[routeName] = { segments: [] };
+                for(let i = 0; i < coords.length - 1; i++) {
+                    const start = turf.point(coords[i]);
+                    const end = turf.point(coords[i+1]);
+                    const distance = turf.distance(start, end, {units: 'kilometers'});
+                    const bearing = turf.bearing(start, end);
+                    processedRoutes[routeName].segments.push({ start, end, distance, bearing });
+                }
+                const routeCoordsLatLng = coords.map(coord => [coord[1], coord[0]]);
+                routeLayers[routeName] = L.polyline(routeCoordsLatLng, { color: '#3b82f6', weight: 5, opacity: 0.7 }).addTo(map);
+            }
+            
+            const busIcon = L.icon({
+                iconUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231d4ed8"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11C5.84 5 5.28 5.42 5.08 6.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>',
+                iconSize: [32, 32], iconAnchor: [16, 16], className: 'bus-marker-icon'
+            });
+
+            vehicles.forEach(bus => {
+                const routeInfo = processedRoutes[bus.route];
+                const segmentIndex = Math.floor(Math.random() * routeInfo.segments.length);
+                const distanceOnSegment = Math.random() * routeInfo.segments[segmentIndex].distance;
+
+                const initialPoint = turf.destination(routeInfo.segments[segmentIndex].start, distanceOnSegment, routeInfo.segments[segmentIndex].bearing, {units: 'kilometers'});
+                const initialLatLng = [initialPoint.geometry.coordinates[1], initialPoint.geometry.coordinates[0]];
+
+                const marker = L.marker(initialLatLng, { icon: busIcon, rotationAngle: 0 }).addTo(map);
+                marker.bindPopup("", { offset: [0, -10] });
+                busMarkers.push({ 
+                    marker, 
+                    data: bus, 
+                    currentSegment: segmentIndex,
+                    distanceOnSegment: distanceOnSegment,
+                    speedVariation: 1 + (Math.random() - 0.5) * 0.4
+                });
+            });
+            updatePopupContent();
+        }
+
+        function updatePopupContent() {
+             busMarkers.forEach(({ marker, data }) => {
+                const etaText = data.eta > 0 ? `${data.eta} mins` : 'Arriving';
+                const content = `
+                    <div class="w-60">
+                        <h4 class="font-bold text-lg mb-2 text-slate-800">Bus ${data.id} (Route ${data.route})</h4>
+                        <p class="text-slate-600"><span class="font-semibold">Status:</span> <span class="${data.status.includes('Delay') || data.status.includes('Traffic') ? 'text-orange-500' : 'text-green-600'}">${data.status}</span></p>
+                        <p class="text-slate-600"><span class="font-semibold">Next Stop:</span> ${data.nextStop}</p>
+                        <p class="text-slate-600 mb-3"><span class="font-semibold">ETA:</span> ${etaText}</p>
+                        <button onclick="getNearbyInfo('${data.nextStop}')" class="bg-blue-100 text-blue-700 text-sm font-semibold py-2 px-3 rounded-md w-full hover:bg-blue-200 transition">
+                            ✨ What's Nearby?
+                        </button>
+                    </div>
+                `;
+                marker.setPopupContent(content);
+            });
+        }
+        
+        function animateBuses(timestamp) {
+            if (!lastTime) { lastTime = timestamp; requestAnimationFrame(animateBuses); return; }
+
+            const deltaTime = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            const baseSpeed = 30 / 3600;
+
+            busMarkers.forEach(busObj => {
+                const routeInfo = processedRoutes[busObj.data.route];
+                let segment = routeInfo.segments[busObj.currentSegment];
+
+                let distanceToTravel = baseSpeed * busObj.speedVariation * deltaTime;
+                busObj.distanceOnSegment += distanceToTravel;
+                
+                while (busObj.distanceOnSegment > segment.distance && segment.distance > 0) {
+                    distanceToTravel = busObj.distanceOnSegment - segment.distance;
+                    busObj.currentSegment = (busObj.currentSegment + 1) % routeInfo.segments.length;
+                    segment = routeInfo.segments[busObj.currentSegment];
+                    busObj.distanceOnSegment = distanceToTravel;
+                }
+
+                const newPoint = turf.destination(segment.start, busObj.distanceOnSegment, segment.bearing, {units: 'kilometers'});
+                const newLatLng = [newPoint.geometry.coordinates[1], newPoint.geometry.coordinates[0]];
+                
+                busObj.marker.setLatLng(newLatLng);
+                busObj.marker.setRotationAngle(segment.bearing);
+            });
+            
+            requestAnimationFrame(animateBuses);
+        }
+
+        function startBusUpdates(stopNames) {
+            setInterval(() => {
+                busMarkers.forEach(({ data }) => {
+                    if (Math.random() > 0.3) {
+                        if (data.eta > 0) data.eta--;
+                    }
+                    if (data.eta <= 0) {
+                        const routeStops = stopNames[data.route];
+                        const currentStopIndex = routeStops.indexOf(data.nextStop);
+                        const nextStopIndex = (currentStopIndex + 1) % routeStops.length;
+                        data.currentStop = data.nextStop;
+                        data.nextStop = routeStops[nextStopIndex];
+                        data.eta = Math.floor(Math.random() * 10) + 15;
+                        data.status = Math.random() < 0.7 ? 'On Time' : (Math.random() < 0.85 ? 'Slight Delay' : 'Heavy Traffic');
+                    }
+                });
+                updatePopupContent();
+            }, 2500);
+        }
+
+        // --- Route Filtering Logic ---
+        const routeFilters = document.getElementById('route-filters');
+        const visibleRoutes = new Set(['A', 'B', 'C', 'D', 'E']);
+
+        routeFilters.addEventListener('click', (e) => {
+            if (e.target.classList.contains('route-filter-btn')) {
+                const route = e.target.dataset.route;
+                e.target.classList.toggle('bg-blue-500');
+                e.target.classList.toggle('bg-slate-300');
+                e.target.classList.toggle('text-white');
+                e.target.classList.toggle('text-slate-700');
+
+                if (visibleRoutes.has(route)) {
+                    visibleRoutes.delete(route);
+                } else {
+                    visibleRoutes.add(route);
+                }
+                applyRouteFilters();
+            }
+        });
+
+        function applyRouteFilters() {
+            busMarkers.forEach(({ marker, data }) => {
+                if (visibleRoutes.has(data.route)) {
+                    if (!map.hasLayer(marker)) map.addLayer(marker);
+                } else {
+                    if (map.hasLayer(marker)) map.removeLayer(marker);
+                }
+            });
+            for (const routeName in routeLayers) {
+                if (visibleRoutes.has(routeName)) {
+                     if (!map.hasLayer(routeLayers[routeName])) map.addLayer(routeLayers[routeName]);
+                } else {
+                     if (map.hasLayer(routeLayers[routeName])) map.removeLayer(routeLayers[routeName]);
+                }
+            }
+        }
+        
+        // --- FAQ Accordion Logic ---
+        const faqItems = document.querySelectorAll('.faq-item');
+        faqItems.forEach(item => {
+            const question = item.querySelector('.faq-question');
+            question.addEventListener('click', () => {
+                const currentlyOpen = document.querySelector('.faq-item.open');
+                if (currentlyOpen && currentlyOpen !== item) {
+                    currentlyOpen.classList.remove('open');
+                }
+                item.classList.toggle('open');
+            });
+        });
+
+        initializeMap();
+
+    </script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(() => console.log("✅ Service Worker registered"))
+      .catch(err => console.log("⚠️ SW failed:", err));
+  }
+</script>
+
+</body>
+</html>
+
